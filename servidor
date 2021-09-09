@@ -9,21 +9,66 @@ def validar_nome(nome):
 
 
 def sair(conexao):
-    print(conexao, 'conexão fechada')
+    if conexao.nick != b'*':
+        print(conexao, conexao.nick, 'conexão fechada')
+        del servidor.users[conexao.nick]
+    else:
+        print(conexao, 'conexão fechada')
+    
+    
     conexao.fechar()
 
 
 def dados_recebidos(conexao, dados):
     if dados == b'':
         return sair(conexao)
-    print(conexao, dados)
+    
+    conexao.msg_buffer += dados
+    split_pos = conexao.msg_buffer.find(b'\r\n')
+    
+    while split_pos != -1:
+        msg = conexao.msg_buffer[:split_pos]
+        # print("New full msg: ", msg)
+        conexao.msg_buffer = conexao.msg_buffer[split_pos + 2:]
+        
+        if msg.startswith(b'PING'):
+            # print("Recv ping")
+            conexao.enviar(b':server PONG server :' + msg.split(b' ', 1)[1] + b'\r\n')
+        elif msg.startswith(b'NICK'):
+            nick = msg.split(b'\r\n')[0].split(b' ', 1)[1]
+            # print("Recv nick", nick)
+            if not validar_nome(nick):
+                # print("Nick invalido")
+                conexao.enviar(b':server 432 ' + conexao.nick + b' ' + nick + b' :Erroneous nickname\r\n')
+            elif nick.lower() in servidor.users:
+                # print("Nick em uso")
+                conexao.enviar(b':server 433 ' + conexao.nick + b' ' + nick + b' :Nickname is already in use\r\n')
+            else:
+                # print("Nick aceito")
+                if conexao.nick == b'*':
+                    conexao.enviar(b':server 001 ' + nick + b' :Welcome\r\n')
+                    conexao.enviar(b':server 422 ' + nick + b' :MOTD File is missing\r\n')
+                else:
+                    conexao.enviar(b':' + conexao.nick + b' NICK ' + nick + b'\r\n')
+                    
+                conexao.nick = nick.lower()
+                servidor.users[conexao.nick] = conexao
+                
+            
+            
+        print(conexao, msg)
+        
+        split_pos = conexao.msg_buffer.find(b'\r\n')
 
 
 def conexao_aceita(conexao):
     print(conexao, 'nova conexão')
+    conexao.msg_buffer = b''
+    conexao.nick = b'*'
     conexao.registrar_recebedor(dados_recebidos)
 
 
 servidor = Servidor(6667)
+servidor.users = {}
 servidor.registrar_monitor_de_conexoes_aceitas(conexao_aceita)
 asyncio.get_event_loop().run_forever()
