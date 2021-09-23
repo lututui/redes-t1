@@ -12,6 +12,13 @@ def sair(conexao):
     if conexao.nick != b'*':
         print(conexao, conexao.nick, 'conexão fechada')
         del servidor.users[conexao.nick]
+
+        for canal in servidor.canais:
+            print(canal, servidor.canais[canal])
+            if conexao.nick in servidor.canais[canal]:
+                servidor.canais[canal].remove(conexao.nick)
+                for nick in servidor.canais[canal]:
+                    servidor.users[nick].enviar(b':' + conexao.nick + b' QUIT :Connection closed\r\n')
     else:
         print(conexao, 'conexão fechada')
 
@@ -88,6 +95,14 @@ def dados_recebidos(conexao, dados):
                 for user_nick in servidor.canais[canal.lower()]:
                     print("send " + str(conexao.nick) + " join to " + str(user_nick))
                     servidor.users[user_nick].enviar(b':' + conexao.nick + b' JOIN :' + canal.lower() + b'\r\n')
+        elif msg.startswith(b'PART'):
+            canal = msg.split(b'\r\n')[0].split(b' ')[1]
+
+            if canal.lower() in servidor.canais and conexao.nick in servidor.canais[canal.lower()]:
+                for user_nick in servidor.canais[canal.lower()]:
+                    print("send " + str(conexao.nick) + " leave " + str(canal.lower()) + " to " + str(user_nick))
+                    servidor.users[user_nick].enviar(b':' + conexao.nick + b' PART ' + canal.lower() + b'\r\n')
+                servidor.canais[canal.lower()].remove(conexao.nick)
 
         split_pos = conexao.msg_buffer.find(b'\r\n')
 
