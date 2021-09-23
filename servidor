@@ -51,17 +51,43 @@ def dados_recebidos(conexao, dados):
                     print(conexao.nick, nick)
                     conexao.enviar(b':' + conexao.nick + b' NICK ' + nick + b'\r\n')
                     del servidor.users[conexao.nick]
-                    
+
                 conexao.nick = nick.lower()
-                servidor.users[conexao.nick] = conexao                    
+                servidor.users[conexao.nick] = conexao
         elif msg.startswith(b'PRIVMSG'):
             dest, priv_msg = msg.split(b'\r\n')[0].split(b' ', 1)[1].split(b' :', 1)
 
             print(servidor.users.keys(), dest, conexao.nick)
-            
-            if dest.lower() in servidor.users:
+
+            if dest.startswith(b'#'):
+                if dest.lower() in servidor.canais:
+                    for user_nick in servidor.canais[dest.lower()]:
+                        if conexao.nick == user_nick:
+                            continue
+                        print("send msg from " + str(conexao.nick) + " to " + str(user_nick) + " in channel " + str(
+                            dest.lower()))
+                        servidor.users[user_nick].enviar(
+                            b':' + conexao.nick + b' PRIVMSG ' + dest + b' :' + priv_msg + b'\r\n')
+            elif dest.lower() in servidor.users:
                 # print("dest in servidor")
-                servidor.users[dest.lower()].enviar(b':' + conexao.nick + b' PRIVMSG ' + dest + b' :' + priv_msg + b'\r\n')
+                servidor.users[dest.lower()].enviar(
+                    b':' + conexao.nick + b' PRIVMSG ' + dest + b' :' + priv_msg + b'\r\n')
+        elif msg.startswith(b'JOIN'):
+            canal = msg.split(b'\r\n')[0].split(b' ', 1)[1]
+
+            if not canal.startswith(b'#') or not validar_nome(canal[1:]):
+                conexao.enviar(b':server 403 canal :No such channel\r\n')
+            else:
+                if canal.lower() in servidor.canais:
+                    print("add " + str(conexao.nick) + " to channel " + str(canal.lower()))
+                    servidor.canais[canal.lower()].append(conexao.nick)
+                else:
+                    print("create channel " + str(canal.lower()) + " with user " + str(conexao.nick))
+                    servidor.canais[canal.lower()] = [conexao.nick]
+
+                for user_nick in servidor.canais[canal.lower()]:
+                    print("send " + str(conexao.nick) + " join to " + str(user_nick))
+                    servidor.users[user_nick].enviar(b':' + conexao.nick + b' JOIN :' + canal.lower() + b'\r\n')
 
         split_pos = conexao.msg_buffer.find(b'\r\n')
 
@@ -75,5 +101,6 @@ def conexao_aceita(conexao):
 
 servidor = Servidor(6667)
 servidor.users = {}
+servidor.canais = {}
 servidor.registrar_monitor_de_conexoes_aceitas(conexao_aceita)
 asyncio.get_event_loop().run_forever()
