@@ -95,6 +95,11 @@ def dados_recebidos(conexao, dados):
                 for user_nick in servidor.canais[canal.lower()]:
                     print("send " + str(conexao.nick) + " join to " + str(user_nick))
                     servidor.users[user_nick].enviar(b':' + conexao.nick + b' JOIN :' + canal.lower() + b'\r\n')
+
+                membros = b' '.join(sorted(servidor.canais[canal.lower()]))
+                conexao.enviar(b':server 353 ' + conexao.nick + b' = ' + canal + b' :' + membros + b'\r\n')
+                conexao.enviar(b':server 366 ' + conexao.nick + b' ' + canal + b' :End of /NAMES list.\r\n')
+
         elif msg.startswith(b'PART'):
             canal = msg.split(b'\r\n')[0].split(b' ')[1]
 
